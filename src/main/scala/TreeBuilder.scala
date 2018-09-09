@@ -20,6 +20,7 @@
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
 import com.simiacryptus.sparkbook.Java8Util._
 import com.simiacryptus.sparkbook._
+import com.simiacryptus.sparkbook.repl.SparkRepl
 import com.simiacryptus.text.{CharTrieIndex, IndexNode, TrieNode}
 import com.simiacryptus.util.io.{NotebookOutput, ScalaJson}
 import com.simiacryptus.util.lang.SerializableConsumer
@@ -76,6 +77,13 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
       sourceDataFrame.persist(StorageLevel.MEMORY_ONLY_SER)
       println(s"Loaded ${sourceDataFrame.count()} rows")
       sourceDataFrame
+    })
+    dataFrame.createOrReplaceTempView(sourceTableName)
+    log.subreport("explore", (sublog: NotebookOutput) => {
+      val thread = new Thread(() => new SparkRepl().accept(sublog))
+      thread.setName("Data Exploration REPL")
+      thread.setDaemon(true)
+      thread.start()
     })
     val Array(trainingData, testingData) = dataFrame.randomSplit(Array(0.9, 0.1))
     trainingData.persist(StorageLevel.MEMORY_ONLY_SER)
