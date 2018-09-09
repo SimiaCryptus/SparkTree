@@ -1,11 +1,10 @@
 import com.simiacryptus.aws.exe.EC2NodeSettings
 import com.simiacryptus.sparkbook._
-import com.simiacryptus.util.io.NotebookOutput
 import org.apache.spark.sql.types._
 
-object BuildTree_CovType_Local extends BuildTree_CovType with LocalRunner with NotebookRunner
+object CovType_BuildTree_Local extends CovType_BuildTree with LocalRunner with NotebookRunner
 
-object BuildTree_CovType_Embedded extends BuildTree_CovType with EmbeddedSparkRunner with NotebookRunner {
+object CovType_BuildTree_Embedded extends CovType_BuildTree with EmbeddedSparkRunner with NotebookRunner {
 
   override def numberOfWorkersPerNode: Int = 2
 
@@ -13,7 +12,7 @@ object BuildTree_CovType_Embedded extends BuildTree_CovType with EmbeddedSparkRu
 
 }
 
-object BuildTree_CovType_EC2 extends BuildTree_CovType with EC2SparkRunner with AWSNotebookRunner {
+object CovType_BuildTree_EC2 extends CovType_BuildTree with EC2SparkRunner with AWSNotebookRunner {
 
   override def numberOfWorkerNodes: Int = 2
 
@@ -30,7 +29,7 @@ object BuildTree_CovType_EC2 extends BuildTree_CovType with EC2SparkRunner with 
 }
 
 
-abstract class BuildTree_CovType extends BuildTree {
+abstract class CovType_BuildTree extends TreeBuilder {
   override val dataSource: String = "s3a://simiacryptus/data/covtype/"
   val target = Array("Cover_Type")
 

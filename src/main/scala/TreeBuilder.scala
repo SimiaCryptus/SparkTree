@@ -30,56 +30,8 @@ import org.apache.spark.storage.StorageLevel
 import scala.collection.{immutable, mutable}
 import scala.util.Random
 
-case class TreeNode
-(
-  parent: TreeNode,
-  count: Long,
-  childId: Char,
-  childRule: String,
-  key: Any = "",
-  fn: Row => String = null,
-  children: mutable.Map[String, TreeNode] = new mutable.HashMap[String, TreeNode]()
-) {
-  def route(row: Row): TreeNode = {
-    if (fn == null) {
-      this
-    } else {
-      children(fn(row)).route(row)
-    }
-  }
 
-  def id: String = {
-    if (null == parent) "" else parent.id + childId
-  }
-
-  def labelingSql(): String = {
-    if (this.children.isEmpty)
-      s""""${this.id}""""
-    else {
-      val array = this.children.toList.sortBy(_._2.id).reverse.toArray
-      var rules = array.tail.reverse.map(e => {
-        s"""WHEN ${e._1} THEN ${e._2.labelingSql()}"""
-      }) ++ array.headOption.map(e =>
-        s"""ELSE ${e._2.labelingSql()}"""
-      )
-      s"""
-         |CASE
-         |  ${rules.mkString("\n").replaceAll("\n", "\n  ")}
-         |END
-           """.stripMargin.trim
-    }
-  }
-
-  def conditions(): Seq[String] = {
-    (
-      (if (this.parent != null) this.parent.conditions() else Seq.empty)
-        ++ List(this.childRule)
-      ).map(_.trim).filterNot(_.isEmpty)
-  }
-
-}
-
-object BuildTree {
+object TreeBuilder {
   val sparkSession: SparkSession = SparkSession.builder()
     .config("fs.s3a.aws.credentials.provider",
       classOf[DefaultAWSCredentialsProviderChain].getCanonicalName)
@@ -87,7 +39,7 @@ object BuildTree {
 
 }
 
-abstract class BuildTree extends SerializableConsumer[NotebookOutput] with Logging with InteractiveSetup {
+abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Logging with InteractiveSetup {
 
   override def inputTimeoutSeconds = 600
 
@@ -111,9 +63,11 @@ abstract class BuildTree extends SerializableConsumer[NotebookOutput] with Loggi
 
   val ngramLength: Int = 5
 
+  val gatherNodeStatistics: Boolean = true
+
   def sourceTableName: String
 
-  @transient lazy val sourceDataFrame = BuildTree.sparkSession.sqlContext.read.parquet(dataSource).cache()
+  @transient lazy val sourceDataFrame = TreeBuilder.sparkSession.sqlContext.read.parquet(dataSource).cache()
 
   def statsSpec: List[String]
 
@@ -139,7 +93,7 @@ abstract class BuildTree extends SerializableConsumer[NotebookOutput] with Loggi
       parent = null,
       childId = 'x',
       childRule = ""
-    ), trainingData, maxDepth = maxTreeDepth)(log, BuildTree.sparkSession)
+    ), trainingData, maxDepth = maxTreeDepth)(log, TreeBuilder.sparkSession)
     validate(log, testingData, root)
   }
 
@@ -180,10 +134,12 @@ abstract class BuildTree extends SerializableConsumer[NotebookOutput] with Loggi
         println(s"Current Tree Node: ${treeNode.id}\n")
         println(treeNode.conditions().mkString("\n\tAND "))
       })
-      log.h2("Statistics")
-      log.eval(() => {
-        ScalaJson.toJson(stats(dataFrame))
-      })
+      if (gatherNodeStatistics) {
+        log.h2("Statistics")
+        log.eval(() => {
+          ScalaJson.toJson(stats(dataFrame))
+        })
+      }
       if (maxDepth <= 0 || prune(dataFrame)) {
         treeNode
       } else {

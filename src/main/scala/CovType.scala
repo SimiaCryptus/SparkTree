@@ -111,7 +111,7 @@ object CovType {
       Moran family - Cryorthents - Rock land complex, extremely stony.
     """.stripMargin.split("\n").map(_.trim).filterNot(_.isEmpty).toArray
 
-  def dataframe(session: SparkSession = BuildTree.sparkSession): DataFrame = {
+  def dataframe(session: SparkSession = TreeBuilder.sparkSession): DataFrame = {
     val reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(S3Util.cache(
       AmazonS3ClientBuilder.standard.withRegion(Regions.US_WEST_2).build,
       new URI("s3://simiacryptus/covtype.data.gz"),
