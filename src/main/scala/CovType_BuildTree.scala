@@ -42,9 +42,9 @@ abstract class CovType_BuildTree extends TreeBuilder {
   def entropySpec: Map[String, Double] = sourceDataFrame.schema
     .filterNot(_.name.startsWith("Soil_Type"))
     .map(field => field.dataType match {
-      case StringType =>
-        val avgLength = sourceDataFrame.select(sourceDataFrame.col(field.name)).rdd.map(_.getAs[String](0).length).mean
-        field.name -> 1.0 / avgLength
+      //      case StringType =>
+      //        val avgLength = sourceDataFrame.select(sourceDataFrame.col(field.name)).rdd.map(_.getAs[String](0).length).mean
+      //        field.name -> 1.0 / avgLength
       case _ => field.name -> 1.0
     })
     .filter(tuple => supervision match {
