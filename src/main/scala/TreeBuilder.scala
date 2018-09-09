@@ -248,8 +248,10 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
     val colVals = dataFrame.select(dataFrame.col(field.name)).rdd
     field.dataType match {
       case _: IntegerType =>
-        val values = colVals.map(row => Option(row.getAs[Number](0))).filter(_.isDefined).map(_.get.doubleValue()).cache()
-        val sum0 = values.map(Math.pow(_, 0)).sum()
+        val values = colVals.map(row => Option(row.getAs[Int](0))).filter(_.isDefined).map(_.get).cache()
+        val cnt = values.count().doubleValue()
+        val entropy = values.countByValue().values.map(_ / cnt).map(x => x * Math.log(x)).sum
+        val sum0 = cnt
         val sum1 = values.sum()
         val sum2 = values.map(Math.pow(_, 2)).sum()
         val mean = sum1 / sum0
@@ -264,7 +266,8 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
           "sum2" -> sum2,
           "mean" -> mean,
           "stddev" -> Math.sqrt(Math.abs((sum2 / sum0) - mean * mean)),
-          "common_values" -> dataFrame.rdd.map(_.getAs[Integer](field.name)).countByValue().toList.sortBy(_._2).takeRight(topN).toMap
+          "common_values" -> dataFrame.rdd.map(_.getAs[Integer](field.name)).countByValue().toList.sortBy(_._2).takeRight(topN).toMap,
+          "entropy" -> entropy
         )
 
       case _: NumericType =>
@@ -356,7 +359,7 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
   }
 
   def entropy(root: IndexNode) = {
-    val totalSize = root.getCursorCount
+    def totalSize = root.getCursorCount
     var entropy = 0.0
     if (null != root) root.visitFirst((n: TrieNode) => {
       if (!n.hasChildren) {

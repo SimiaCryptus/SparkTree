@@ -16,15 +16,15 @@ object CovType_BuildTree_EC2 extends CovType_BuildTree with EC2SparkRunner with 
 
   override def numberOfWorkerNodes: Int = 2
 
-  override def numberOfWorkersPerNode: Int = 8
+  override def numberOfWorkersPerNode: Int = 7
 
-  override def driverMemory: String = "2g"
+  override def driverMemory: String = "6g"
 
   override def workerMemory: String = "2g"
 
-  override def masterSettings: EC2NodeSettings = EC2NodeSettings.T2_L
+  override def masterSettings: EC2NodeSettings = EC2NodeSettings.M5_L
 
-  override def workerSettings: EC2NodeSettings = EC2NodeSettings.T2_XL
+  override def workerSettings: EC2NodeSettings = EC2NodeSettings.M5_XL
 
 }
 
@@ -53,7 +53,7 @@ abstract class CovType_BuildTree extends TreeBuilder {
       case "semi-supervised" =>
         true
       case "supervised" =>
-        !ruleBlacklist.contains(tuple._1)
+        ruleBlacklist.contains(tuple._1)
     })
     .toMap
 
