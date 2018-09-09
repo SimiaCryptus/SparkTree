@@ -64,7 +64,8 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
 
   val ngramLength: Int = 5
 
-  val gatherNodeStatistics: Boolean = true
+  val branchStats: Boolean = true
+  val leafStats: Boolean = true
 
   def sourceTableName: String
 
@@ -142,15 +143,21 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
         println(s"Current Tree Node: ${treeNode.id}\n")
         println(treeNode.conditions().mkString("\n\tAND "))
       })
-      if (gatherNodeStatistics) {
-        log.h2("Statistics")
-        log.eval(() => {
-          ScalaJson.toJson(stats(dataFrame))
-        })
-      }
       if (maxDepth <= 0 || prune(dataFrame)) {
+        if (leafStats) {
+          log.h2("Statistics")
+          log.eval(() => {
+            ScalaJson.toJson(stats(dataFrame))
+          })
+        }
         treeNode
       } else {
+        if (branchStats) {
+          log.h2("Statistics")
+          log.eval(() => {
+            ScalaJson.toJson(stats(dataFrame))
+          })
+        }
         log.h2("Rules")
         val dataSample = dataFrame.rdd.takeSample(false, sampleSize)
         val ruleInfo: (Row => String, (List[String], Any), Double) = log.eval(() => {
@@ -357,7 +364,7 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
         entropy = entropy + w * Math.log(w)
       }
     })
-    entropy * totalSize
+    entropy // * totalSize
   }
 
   def ruleSuggestions(dataFrame: DataFrame): immutable.Seq[(Row => String, (List[String], Any))] = {
