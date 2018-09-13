@@ -17,30 +17,23 @@
  * under the License.
  */
 
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
+import java.util.regex.Pattern
+
 import com.simiacryptus.sparkbook.Java8Util._
 import com.simiacryptus.sparkbook._
-import com.simiacryptus.sparkbook.repl.SparkRepl
+import com.simiacryptus.sparkbook.repl.{SparkRepl, SparkSessionProvider}
 import com.simiacryptus.text.{CharTrieIndex, IndexNode, TrieNode}
 import com.simiacryptus.util.io.{NotebookOutput, ScalaJson}
 import com.simiacryptus.util.lang.SerializableConsumer
-import org.apache.spark.sql.types.{IntegerType, NumericType, StringType, StructField}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 import org.apache.spark.storage.StorageLevel
 
-import scala.collection.{immutable, mutable}
+import scala.collection.immutable
 import scala.util.Random
 
-
-object TreeBuilder {
-  val sparkSession: SparkSession = SparkSession.builder()
-    .config("fs.s3a.aws.credentials.provider",
-      classOf[DefaultAWSCredentialsProviderChain].getCanonicalName)
-    .getOrCreate()
-
-}
-
-abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Logging with InteractiveSetup {
+abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Logging with SparkSessionProvider with InteractiveSetup {
 
   override def inputTimeoutSeconds = 600
 
@@ -50,85 +43,132 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
 
   val sampleSize = 1000
 
-  def dataSource: String
+  def dataSources: Map[String, String]
 
   def ruleBlacklist: Array[String]
 
-  def entropySpec: Map[String, Double]
+  def entropySpec(schema: StructType): Map[String, Double]
 
   def validationColumns: Array[String]
 
   val tokenizerRegex = "\\s+"
 
-  val maxTreeDepth: Int = 3
+  val maxTreeDepth: Int = 4
 
-  val ngramLength: Int = 5
+  val ngramLength: Int = 6
 
-  val branchStats: Boolean = true
-  val leafStats: Boolean = true
+  val branchStats: Boolean = false
+
+  val leafStats: Boolean = false
 
   def sourceTableName: String
 
-  @transient lazy val sourceDataFrame = TreeBuilder.sparkSession.sqlContext.read.parquet(dataSource).cache()
+  final def sourceDataFrame = if (spark.sqlContext.tableNames().contains(sourceTableName)) spark.sqlContext.table(sourceTableName) else null
 
-  def statsSpec: List[String]
+  def statsSpec(schema: StructType): List[String]
+
+  private lazy val tokenizer = Option(tokenizerRegex).map(Pattern.compile(_))
+
+  def extractWords(str: String): Array[String] = {
+    if (tokenizer.isEmpty) Array.empty else tokenizer.get.split(str)
+  }
 
   override def accept2(log: NotebookOutput): Unit = {
-    val dataFrame: DataFrame = log.eval(() => {
-      sourceDataFrame.persist(StorageLevel.MEMORY_ONLY_SER)
-      println(s"Loaded ${sourceDataFrame.count()} rows")
-      sourceDataFrame
-    })
-    dataFrame.createOrReplaceTempView(sourceTableName)
+    log.h1("Data Staging")
+    log.p("""First, we will stage the initial data and manually perform a data staging query:""")
+    new SparkRepl() {
+
+      override val defaultCmd: String =
+        s"""%sql
+           | CREATE TEMPORARY VIEW ${sourceTableName} AS
+           | SELECT * FROM ${dataSources.values.head}
+        """.stripMargin.trim
+
+      override def shouldContinue(): Boolean = {
+        sourceDataFrame == null
+      }
+
+      override def init(): Unit = {
+        log.run(() => {
+          dataSources.foreach(t => {
+            val (k, v) = t
+            val frame = spark.sqlContext.read.parquet(k).persist(StorageLevel.DISK_ONLY)
+            frame.createOrReplaceTempView(v)
+            println(s"Loaded ${frame.count()} rows to ${v}")
+          })
+        })
+      }
+    }.accept(log)
+    log.p("""This sub-report can be used for concurrent adhoc data exploration:""")
     log.subreport("explore", (sublog: NotebookOutput) => {
       val thread = new Thread(() => new SparkRepl().accept(sublog))
       thread.setName("Data Exploration REPL")
       thread.setDaemon(true)
       thread.start()
     })
-    val Array(trainingData, testingData) = dataFrame.randomSplit(Array(0.9, 0.1))
+
+    val Array(trainingData, testingData) = sourceDataFrame.randomSplit(Array(0.9, 0.1))
     trainingData.persist(StorageLevel.MEMORY_ONLY_SER)
+    log.h1("""Tree Parameters""")
+    log.p("""Now that we have loaded the schema, here are the parameters we will use for tree building:""")
     log.eval(() => {
-      ScalaJson.toJson(statsSpec)
+      ScalaJson.toJson(statsSpec(sourceDataFrame.schema))
     })
     log.eval(() => {
       ScalaJson.toJson(ruleBlacklist)
     })
     log.eval(() => {
-      ScalaJson.toJson(entropySpec)
+      ScalaJson.toJson(entropySpec(sourceDataFrame.schema))
     })
+    log.h1("Construction")
     val root = split(TreeNode(
       count = trainingData.count(),
       parent = null,
       childId = 'x',
       childRule = ""
-    ), trainingData, maxDepth = maxTreeDepth)(log, TreeBuilder.sparkSession)
+    ), trainingData, maxDepth = maxTreeDepth)(log, spark)
+    log.h1("Validation")
     validate(log, testingData, root)
   }
 
   def validate(log: NotebookOutput, testingData: Dataset[Row], treeRoot: TreeNode) = {
-    validationColumns.filterNot(_ == null).filterNot(_.isEmpty).foreach(validationColumn => {
-      log.h2("Validate " + validationColumn)
-      testingData.schema.apply(validationColumn).dataType match {
+    validationColumns.filterNot(_ == null).filterNot(_.isEmpty).foreach(columnName => {
+      log.h2("Validate " + columnName)
+      val totalRows = testingData.count()
+      val where = treeRoot.conditions().mkString("\n AND ").replaceAll("\n", "\n  ")
+      var sql = s"""SELECT *, ${treeRoot.labelingSql().replaceAll("\n", "\n  ")} AS Cluster_ID FROM $sourceTableName AS T""".stripMargin.trim
+      if (sql.isEmpty) sql += s"WHERE ${where}"
+
+      val categoryStatsPivot = spark.sql(sql).withColumnRenamed(columnName, "raw_" + columnName)
+        .withColumn(columnName, concat(lit(columnName + "_"), col("raw_" + columnName)))
+        .drop("raw_" + columnName)
+        .groupBy("Cluster_ID")
+        .pivot(columnName)
+        .agg((count(lit(1))))
+        .sort("Cluster_ID").cache()
+      SparkRepl.out(categoryStatsPivot)(log)
+      val csv = categoryStatsPivot.schema.fields.map(_.name).mkString(",") + "\n" + categoryStatsPivot.rdd.collect().map(_.toSeq.map(value => if (null != value) value.toString else "").mkString(",")).mkString("\n")
+      log.p(log.file(csv, columnName + "_stats.csv", columnName + "_stats.csv"))
+
+      testingData.schema.apply(columnName).dataType match {
         case IntegerType =>
-          def getCategory(row: Row): Integer = {
-            row.getAs[Integer](validationColumn)
+          def getCategory(row: Row, colname: String): Integer = {
+            row.getAs[Integer](colname)
           }
 
           def predict(partition: Iterable[Row]): Map[Integer, Double] = {
-            val classes = partition.groupBy(getCategory).mapValues(_.size)
+            val classes = partition.groupBy((row: Row) => getCategory(row, columnName)).mapValues(_.size)
             val total = classes.values.sum
             classes.map(e => e._1 -> e._2 / total.doubleValue())
           }
 
+          val predictionIndex = testingData.rdd.groupBy(row => treeRoot.route(row).id).mapValues(predict(_)).collect().toMap
 
-          val predictionIndex: Map[String, Map[Integer, Double]] = log.eval(() => {
-            testingData.rdd.groupBy(row => treeRoot.route(row).id).mapValues(predict(_)).collect().toMap
-          })
+          val accuracy = (testingData.rdd.collect().map(row => {
+            if (predictionIndex(treeRoot.route(row).id).maxBy(_._2)._1.toInt == getCategory(row, columnName).toInt) 1.0 else 0.0
+          }).sum / testingData.rdd.count()).toString
           log.eval(() => {
-            (testingData.rdd.collect().map(row => {
-              if (predictionIndex(treeRoot.route(row).id).maxBy(_._2)._1.toInt == getCategory(row).toInt) 1.0 else 0.0
-            }).sum / testingData.rdd.count()).toString
+            accuracy
           })
       }
     })
@@ -136,7 +176,7 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
 
   def split(treeNode: TreeNode, dataFrame: DataFrame, maxDepth: Int)(implicit log: NotebookOutput, session: SparkSession): TreeNode = {
     val prevStorageLevel = dataFrame.storageLevel
-    dataFrame.persist(StorageLevel.MEMORY_ONLY)
+    dataFrame.persist(StorageLevel.MEMORY_ONLY_SER)
     try {
       log.h2("Context")
       log.run(() => {
@@ -159,26 +199,30 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
           })
         }
         log.h2("Rules")
-        val dataSample = dataFrame.rdd.takeSample(false, sampleSize)
         val ruleInfo: (Row => String, (List[String], Any), Double) = log.eval(() => {
-          val suggestions = ruleSuggestions(dataFrame)
-          val entropyKeys = entropySpec
-          val evaluatedRules = session.sparkContext.parallelize(suggestions).map(suggestionInfo => {
-            val (rule, name) = suggestionInfo
-            (rule, name, dataSample.groupBy(rule).mapValues(rows => {
-              entropyKeys.toList.map(e => {
-                val (id, weight) = e
-                (entropyFunction(rows, id)) * weight
-              }).sum * rows.length
-            }).values.sum)
-          }).collect().sortBy(-_._3)
-          evaluatedRules.map(x => x._2 -> x._3).map(e => s"entropy[${e._1}] = ${e._2}\n").foreach(println)
-          evaluatedRules.head
+          val dataSample = dataFrame.sparkSession.sparkContext.broadcast(dataFrame.rdd.takeSample(false, sampleSize))
+          try {
+            val suggestions = ruleSuggestions(dataFrame)
+            val entropyKeys = entropySpec(sourceDataFrame.schema)
+            val evaluatedRules = session.sparkContext.parallelize(suggestions).map(suggestionInfo => {
+              val (rule, name) = suggestionInfo
+              (rule, name, dataSample.value.groupBy(rule).mapValues(rows => {
+                entropyKeys.toList.map(e => {
+                  val (id, weight) = e
+                  (entropyFunction(rows, id)) * weight
+                }).sum * rows.length
+              }).values.sum)
+            }).collect().sortBy(-_._3)
+            evaluatedRules.map(x => x._2 -> x._3).map(e => s"entropy[${e._1}] = ${e._2}\n").foreach(println)
+            evaluatedRules.head
+          } finally {
+            dataSample.destroy()
+          }
         })
         val (ruleFn, name, entropy) = ruleInfo
 
         log.h2("Children")
-        val partitionedData = dataFrame.rdd.groupBy(ruleFn).persist(StorageLevel.MEMORY_ONLY)
+        val partitionedData = dataFrame.rdd.groupBy(ruleFn).persist(StorageLevel.MEMORY_ONLY_SER)
         dataFrame.persist(prevStorageLevel)
         val parentWithRule = treeNode.copy(
           key = name,
@@ -192,7 +236,7 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
         })
         (for (partitionIndex <- partitions) yield {
           val frame = session.sqlContext.createDataFrame(partitionedData.filter(_._1 == partitionIndex).flatMap(_._2), dataFrame.schema)
-          frame.persist(StorageLevel.MEMORY_ONLY)
+          frame.persist(StorageLevel.MEMORY_ONLY_SER)
           val newChild = TreeNode(
             count = frame.count(),
             parent = parentWithRule,
@@ -240,7 +284,8 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
   }
 
   def stats(dataFrame: DataFrame): Map[String, Map[String, Any]] = {
-    dataFrame.schema.filter(x => statsSpec.contains(x.name)).map(stats(dataFrame, _)).toMap
+    val schema = dataFrame.schema
+    schema.filter(x => statsSpec(schema).contains(x.name)).map(stats(dataFrame, _)).toMap
   }
 
   def stats(dataFrame: DataFrame, field: StructField): (String, Map[String, Any]) = {
@@ -336,7 +381,7 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
 
   def prune(dataFrame: DataFrame) = {
     (dataFrame.count() < minNodeSize) || (
-      dataFrame.count() < 10000 && entropySpec.toList.map(e => {
+      dataFrame.count() < 10000 && entropySpec(sourceDataFrame.schema).toList.map(e => {
         val (id, weight) = e
         (entropyFunction(dataFrame.rdd.collect(), id)) * weight
       }).sum == 0.0)
@@ -360,6 +405,7 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
 
   def entropy(root: IndexNode) = {
     def totalSize = root.getCursorCount
+
     var entropy = 0.0
     if (null != root) root.visitFirst((n: TrieNode) => {
       if (!n.hasChildren) {
@@ -371,7 +417,10 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
   }
 
   def ruleSuggestions(dataFrame: DataFrame): immutable.Seq[(Row => String, (List[String], Any))] = {
-    dataFrame.schema.filterNot(f => ruleBlacklist.contains(f.name)).flatMap(ruleSuggestions(dataFrame, _)).toStream
+    val sampled = dataFrame.sample(false, ruleSamples.doubleValue() / dataFrame.count()).cache()
+    val list = sampled.schema.filterNot(f => ruleBlacklist.contains(f.name)).flatMap(ruleSuggestions(sampled, _)).toList
+    sampled.unpersist()
+    list
   }
 
   def ruleSuggestions(dataFrame: DataFrame, field: StructField): Seq[(Row => String, (List[String], Any))] = {
@@ -379,7 +428,8 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
     field.dataType match {
       case IntegerType =>
         colVals.map(_ (0).asInstanceOf[Number].doubleValue())
-          .takeSample(false, ruleSamples)
+          //.takeSample(false, ruleSamples)
+          .collect()
           .distinct
           .sorted
           .tail
@@ -392,18 +442,22 @@ abstract class TreeBuilder extends SerializableConsumer[NotebookOutput] with Log
             List(field.name) -> value
           ))
       case StringType =>
-        val strings = colVals.map(_ (0).asInstanceOf[String].toString).takeSample(false, 1000).toList
+        val sampledRows = Random.shuffle(colVals.map(_ (0).asInstanceOf[String].toString)
+          //.takeSample(false, 1000)
+          .collect()
+          .toList).toArray
         Stream.continually({
-          (if (tokenizerRegex.isEmpty) Seq.empty else Random.shuffle(strings).flatMap(str => Random.shuffle(str.split(tokenizerRegex).toList).take(1))) ++
-            (if (0 >= ngramLength) Seq.empty else Random.shuffle(strings).flatMap(str => (0 until 1).map(i => str.drop(Random.nextInt(str.length - ngramLength)).take(ngramLength))))
-        }).flatten.distinct.filter(term => {
-          val matchFraction = strings.filter(_.contains(term)).size / strings.size.doubleValue()
+          val words: Seq[String] = sampledRows.flatMap(str => Random.shuffle(extractWords(str).toList).take(1))
+          val ngrams: Seq[String] = (if (0 >= ngramLength) Seq.empty else sampledRows.flatMap(str => (0 until 1).map(i => str.drop(Random.nextInt(str.length - ngramLength)).take(ngramLength))))
+          words ++ ngrams
+        }).flatten.take(1000).distinct.filter(term => {
+          val matchFraction = sampledRows.filter(_.contains(term)).size / sampledRows.size.doubleValue()
           (matchFraction > 0.1) && (matchFraction < 0.8)
         }).take(ruleSamples).map(term => {
           (
             (r: Row) => r.getAs[String](field.name).contains(term) match {
-              case true => s"""T.${field.name}.contains("${term}")"""
-              case false => s"""!T.${field.name}.contains("${term}")"""
+              case true => s"""T.${field.name} LIKE "%${term}%""""
+              case false => s"""T.${field.name} NOT LIKE "%${term}%""""
             },
             List(field.name) -> term
           )

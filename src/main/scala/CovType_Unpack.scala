@@ -19,7 +19,7 @@
 
 import com.simiacryptus.aws.exe.EC2NodeSettings
 import com.simiacryptus.sparkbook._
-import com.simiacryptus.sparkbook.repl.SparkRepl
+import com.simiacryptus.sparkbook.repl.{SparkRepl, SparkSessionProvider}
 import org.apache.spark.sql.SaveMode
 
 object CovType_Unpack_Local extends CovType_Unpack with LocalRunner with NotebookRunner {
@@ -27,16 +27,18 @@ object CovType_Unpack_Local extends CovType_Unpack with LocalRunner with Noteboo
 }
 
 object CovType_Unpack_EC2 extends CovType_Unpack with EC2Runner with AWSNotebookRunner {
+  override def s3bucket: String = super.s3bucket
+
   override def nodeSettings: EC2NodeSettings = EC2NodeSettings.T2_L
 }
 
-abstract class CovType_Unpack extends SparkRepl with Logging {
+abstract class CovType_Unpack extends SparkRepl with Logging with SparkSessionProvider {
 
   val destination = "s3a://simiacryptus/data/covtype/"
 
   override def init(): Unit = {
     Thread.sleep(30000)
-    val frame = CovType.dataframe()
+    val frame = CovType.dataframe(spark)
     //frame.createOrReplaceTempView("covtype")
     frame.write.mode(SaveMode.Overwrite).parquet(destination)
     frame.sparkSession.sqlContext.read.parquet(destination).createOrReplaceTempView("covtype")

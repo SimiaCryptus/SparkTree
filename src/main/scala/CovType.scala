@@ -5,6 +5,7 @@ import java.util.zip.GZIPInputStream
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.simiacryptus.aws.S3Util
+import com.simiacryptus.sparkbook.repl.SparkRepl
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 
@@ -111,7 +112,7 @@ object CovType {
       Moran family - Cryorthents - Rock land complex, extremely stony.
     """.stripMargin.split("\n").map(_.trim).filterNot(_.isEmpty).toArray
 
-  def dataframe(session: SparkSession = TreeBuilder.sparkSession): DataFrame = {
+  def dataframe(session: SparkSession): DataFrame = {
     val reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(S3Util.cache(
       AmazonS3ClientBuilder.standard.withRegion(Regions.US_WEST_2).build,
       new URI("s3://simiacryptus/covtype.data.gz"),
