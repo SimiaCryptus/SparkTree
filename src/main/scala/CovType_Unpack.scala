@@ -20,20 +20,15 @@
 import com.simiacryptus.aws.exe.EC2NodeSettings
 import com.simiacryptus.sparkbook._
 import com.simiacryptus.sparkbook.repl.{SparkRepl, SparkSessionProvider}
+import com.simiacryptus.sparkbook.util.{LocalRunner, Logging}
 import org.apache.spark.sql.SaveMode
-
-object CovType_Unpack_Local extends CovType_Unpack with LocalRunner with NotebookRunner {
-  override def http_port = 1081
-}
-
-object CovType_Unpack_EC2 extends CovType_Unpack with EC2Runner with AWSNotebookRunner {
-  override def s3bucket: String = super.s3bucket
-
-  override def nodeSettings: EC2NodeSettings = EC2NodeSettings.T2_L
-}
 
 abstract class CovType_Unpack extends SparkRepl with Logging with SparkSessionProvider {
 
+  override val defaultCmd: String =
+    """%sql
+      |SELECT COUNT(*) AS count, Cover_Type FROM covtype GROUP BY Cover_Type
+    """.stripMargin
   val destination = "s3a://simiacryptus/data/covtype/"
 
   override def init(): Unit = {
@@ -43,9 +38,14 @@ abstract class CovType_Unpack extends SparkRepl with Logging with SparkSessionPr
     frame.write.mode(SaveMode.Overwrite).parquet(destination)
     frame.sparkSession.sqlContext.read.parquet(destination).createOrReplaceTempView("covtype")
   }
+}
 
-  override val defaultCmd: String =
-    """%sql
-      |SELECT COUNT(*) AS count, Cover_Type FROM covtype GROUP BY Cover_Type
-    """.stripMargin
+object CovType_Unpack_Local extends CovType_Unpack with LocalRunner[Object] with NotebookRunner[Object] {
+  override def http_port = 1081
+}
+
+object CovType_Unpack_EC2 extends CovType_Unpack with EC2Runner[Object] with AWSNotebookRunner[Object] {
+  override def s3bucket: String = super.s3bucket
+
+  override def nodeSettings: EC2NodeSettings = EC2NodeSettings.T2_L
 }
