@@ -5,7 +5,6 @@ import java.util.zip.GZIPInputStream
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.simiacryptus.aws.S3Util
-import com.simiacryptus.sparkbook.repl.SparkRepl
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 
@@ -118,7 +117,6 @@ object CovType {
       new URI("s3://simiacryptus/covtype.data.gz"),
       new URI("https://archive.ics.uci.edu/ml/machine-learning-databases/covtype/covtype.data.gz")
     ))))
-    soilTypes
     val rows = Stream.continually(reader.readLine()).takeWhile(null != _)
       .map(str => {
         val data = str.split(",").map(_.toInt)

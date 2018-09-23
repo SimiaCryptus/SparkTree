@@ -1,48 +1,15 @@
 import com.simiacryptus.aws.exe.EC2NodeSettings
 import com.simiacryptus.sparkbook._
+import com.simiacryptus.sparkbook.util.LocalRunner
 import org.apache.spark.sql.types._
 
-object CovType_BuildTree_Local extends CovType_BuildTree with LocalRunner with NotebookRunner
-
-object CovType_BuildTree_Embedded extends CovType_BuildTree with EmbeddedSparkRunner with NotebookRunner {
-
-  override def s3bucket: String = super.s3bucket
-
-  override def numberOfWorkersPerNode: Int = 2
-
-  override def workerMemory: String = "2g"
-
-}
-
-object CovType_BuildTree_EC2 extends CovType_BuildTree with EC2SparkRunner with AWSNotebookRunner {
-
-  override def s3bucket: String = super.s3bucket
-
-  override def numberOfWorkerNodes: Int = 2
-
-  override def numberOfWorkersPerNode: Int = 7
-
-  override def driverMemory: String = "14g"
-
-  override def workerMemory: String = "2g"
-
-  override def masterSettings: EC2NodeSettings = EC2NodeSettings.M5_XL
-
-  override def workerSettings: EC2NodeSettings = EC2NodeSettings.M5_XL
-
-}
-
-
 abstract class CovType_BuildTree extends TreeBuilder {
+
   override val dataSources = Map(
     "s3a://simiacryptus/data/covtype/" -> "src_covtype"
   )
   val target = Array("Cover_Type")
-
   val sourceTableName: String = "covtype"
-
-  override def ruleBlacklist = target
-
   val supervision: String = "supervised"
 
   def entropySpec(schema: StructType = sourceDataFrame.schema): Map[String, Double] = {
@@ -65,8 +32,42 @@ abstract class CovType_BuildTree extends TreeBuilder {
       .toMap
   }
 
+  override def ruleBlacklist = target
+
   def statsSpec(schema: StructType = sourceDataFrame.schema): List[String] = schema.map(_.name).toList
 
   override def validationColumns = target
+
+}
+
+object CovType_BuildTree_Local extends CovType_BuildTree with LocalRunner[Object] with NotebookRunner[Object]
+
+object CovType_BuildTree_Embedded extends CovType_BuildTree with EmbeddedSparkRunner[Object] with NotebookRunner[Object] {
+
+  @transient override protected val s3bucket: String = envTuple._2
+
+  override def numberOfWorkersPerNode: Int = 2
+
+  override def workerMemory: String = "2g"
+
+}
+
+object CovType_BuildTree_EC2 extends CovType_BuildTree with EC2SparkRunner[Object] with AWSNotebookRunner[Object] {
+
+  @transient protected override val s3bucket: String = envTuple._2
+
+  override def numberOfWorkerNodes: Int = 1
+
+  override def numberOfWorkersPerNode: Int = 1
+
+  override def workerCores: Int = 8
+
+  override def driverMemory: String = "14g"
+
+  override def workerMemory: String = "14g"
+
+  override def masterSettings: EC2NodeSettings = EC2NodeSettings.M5_XL
+
+  override def workerSettings: EC2NodeSettings = EC2NodeSettings.M5_XL
 
 }
