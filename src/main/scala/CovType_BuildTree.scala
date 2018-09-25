@@ -44,7 +44,7 @@ object CovType_BuildTree_Local extends CovType_BuildTree with LocalRunner[Object
 
 object CovType_BuildTree_Embedded extends CovType_BuildTree with EmbeddedSparkRunner[Object] with NotebookRunner[Object] {
 
-  @transient override protected val s3bucket: String = envTuple._2
+  override protected val s3bucket: String = envTuple._2
 
   override def numberOfWorkersPerNode: Int = 2
 
@@ -54,7 +54,7 @@ object CovType_BuildTree_Embedded extends CovType_BuildTree with EmbeddedSparkRu
 
 object CovType_BuildTree_EC2 extends CovType_BuildTree with EC2SparkRunner[Object] with AWSNotebookRunner[Object] {
 
-  @transient protected override val s3bucket: String = envTuple._2
+  protected override val s3bucket: String = envTuple._2
 
   override def numberOfWorkerNodes: Int = 1
 
