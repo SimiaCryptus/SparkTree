@@ -17,7 +17,7 @@ object CovType_Forest_Local extends CovType_Forest with LocalRunner[Object] with
 
 object CovType_Forest_Embedded extends CovType_Forest with EmbeddedSparkRunner[Object] with NotebookRunner[Object] {
 
-  @transient override protected val s3bucket: String = envTuple._2
+  override protected val s3bucket: String = envTuple._2
 
   override def numberOfWorkersPerNode: Int = 2
 
@@ -27,7 +27,7 @@ object CovType_Forest_Embedded extends CovType_Forest with EmbeddedSparkRunner[O
 
 object CovType_Forest_EC2 extends CovType_Forest with EC2SparkRunner[Object] with AWSNotebookRunner[Object] {
 
-  @transient override protected val s3bucket: String = envTuple._2
+  override protected val s3bucket: String = envTuple._2
 
   override def numberOfWorkerNodes: Int = 2
 
