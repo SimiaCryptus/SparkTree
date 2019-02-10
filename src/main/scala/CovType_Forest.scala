@@ -20,7 +20,6 @@
 import com.simiacryptus.aws.exe.EC2NodeSettings
 import com.simiacryptus.sparkbook._
 import com.simiacryptus.sparkbook.util.LocalRunner
-import org.apache.spark.sql.types._
 
 abstract class CovType_Forest extends MultivariatePredictor {
 
