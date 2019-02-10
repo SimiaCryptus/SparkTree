@@ -36,9 +36,6 @@
     <properties>
         <github.project>sparkbook</github.project>
         <github.path></github.path>
-        <scala.mjversion>2.11</scala.mjversion>
-        <scala.version>2.11.11</scala.version>
-        <spark.version>2.3.1</spark.version>
     </properties>
     <distributionManagement>
         <site>
@@ -151,11 +148,6 @@
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.nanohttpd</groupId>
-            <artifactId>nanohttpd</artifactId>
-            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
