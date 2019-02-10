@@ -252,7 +252,7 @@
     <orderEntry type="library" name="Maven: org.antlr:antlr4-runtime:4.7" level="project" />
     <orderEntry type="library" name="Maven: org.apache.orc:orc-core:nohive:1.5.2" level="project" />
     <orderEntry type="library" name="Maven: org.apache.orc:orc-shims:1.5.2" level="project" />
-    <orderEntry type="library" name="Maven: com.google.protobuf:protobuf-java:3.7.0-rc1" level="project" />
+    <orderEntry type="library" name="Maven: com.google.protobuf:protobuf-java:3.5.1" level="project" />
     <orderEntry type="library" name="Maven: commons-lang:commons-lang:2.6" level="project" />
     <orderEntry type="library" name="Maven: io.airlift:aircompressor:0.10" level="project" />
     <orderEntry type="library" name="Maven: org.apache.orc:orc-mapreduce:nohive:1.5.2" level="project" />
