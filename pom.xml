@@ -34,7 +34,7 @@
     <artifactId>sparktree</artifactId>
 
     <properties>
-        <github.project>sparkbook</github.project>
+        <github.project>sparktree</github.project>
         <github.path></github.path>
     </properties>
     <distributionManagement>
