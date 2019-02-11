@@ -26,7 +26,7 @@
     <parent>
         <groupId>com.simiacryptus</groupId>
         <artifactId>scala-parent</artifactId>
-        <version>1.6.0</version>
+        <version>1.6.1</version>
         <relativePath>../scala-parent</relativePath>
     </parent>
 
@@ -35,12 +35,11 @@
 
     <properties>
         <github.project>sparktree</github.project>
-        <github.path></github.path>
     </properties>
     <distributionManagement>
         <site>
             <id>github</id>
-            <url>https://simiacryptus.github.io/${github.project}/${github.path}</url>
+            <url>https://simiacryptus.github.io/${github.project}/</url>
         </site>
     </distributionManagement>
 
