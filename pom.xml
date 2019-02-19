@@ -32,6 +32,7 @@
 
     <groupId>com.simiacryptus</groupId>
     <artifactId>sparktree</artifactId>
+    <description>Decision Tree Data Analysis with Spark SQL</description>
 
     <properties>
         <github.project>sparktree</github.project>
