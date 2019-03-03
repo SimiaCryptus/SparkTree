@@ -23,7 +23,7 @@ import java.util.zip.GZIPInputStream
 
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
-import com.simiacryptus.aws.S3Util
+import com.simiacryptus.aws.{EC2Util, S3Util}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 
@@ -132,7 +132,7 @@ object CovType {
 
   def dataframe(session: SparkSession): DataFrame = {
     val reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(S3Util.cache(
-      AmazonS3ClientBuilder.standard.withRegion(Regions.US_WEST_2).build,
+      AmazonS3ClientBuilder.standard.withRegion(EC2Util.REGION).build,
       new URI("s3://simiacryptus/covtype.data.gz"),
       new URI("https://archive.ics.uci.edu/ml/machine-learning-databases/covtype/covtype.data.gz")
     ))))
