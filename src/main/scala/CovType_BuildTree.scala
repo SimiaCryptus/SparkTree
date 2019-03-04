@@ -63,27 +63,31 @@ object CovType_BuildTree_Local extends CovType_BuildTree with LocalRunner[Object
 
 object CovType_BuildTree_Embedded extends CovType_BuildTree with EmbeddedSparkRunner[Object] with NotebookRunner[Object] {
 
+  override def hiveRoot: Option[String] = super.hiveRoot
+
   override protected val s3bucket: String = envTuple._2
 
-  override def numberOfWorkersPerNode: Int = 2
+  override val numberOfWorkersPerNode: Int = 2
 
-  override def workerMemory: String = "2g"
+  override val workerMemory: String = "2g"
 
 }
 
 object CovType_BuildTree_EC2 extends CovType_BuildTree with EC2SparkRunner[Object] with AWSNotebookRunner[Object] {
 
-  protected override val s3bucket: String = envTuple._2
+  override def hiveRoot: Option[String] = super.hiveRoot
 
-  override def numberOfWorkerNodes: Int = 1
+  override val s3bucket: String = envTuple._2
 
-  override def numberOfWorkersPerNode: Int = 1
+  override val numberOfWorkerNodes: Int = 1
 
-  override def workerCores: Int = 8
+  override val numberOfWorkersPerNode: Int = 1
 
-  override def driverMemory: String = "14g"
+  override val workerCores: Int = 8
 
-  override def workerMemory: String = "14g"
+  override val driverMemory: String = "14g"
+
+  override val workerMemory: String = "14g"
 
   override def masterSettings: EC2NodeSettings = EC2NodeSettings.M5_XL
 
