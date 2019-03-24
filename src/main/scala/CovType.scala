@@ -21,7 +21,6 @@ import java.io.{BufferedReader, InputStreamReader}
 import java.net.URI
 import java.util.zip.GZIPInputStream
 
-import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import com.simiacryptus.aws.{EC2Util, S3Util}
 import org.apache.spark.sql.types._
