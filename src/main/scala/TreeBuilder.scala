@@ -49,6 +49,7 @@ abstract class TreeBuilder extends SerializableFunction[NotebookOutput, Object] 
   val ngramLength: Int = 6
   val branchStats: Boolean = false
   val leafStats: Boolean = false
+  val selectionEntropyFactor = 1.0
 
   override def inputTimeoutSeconds = 600
 
@@ -69,7 +70,6 @@ abstract class TreeBuilder extends SerializableFunction[NotebookOutput, Object] 
   def extractWords(str: String): Array[String] = {
     if (tokenizer.isEmpty) Array.empty else tokenizer.get.split(str)
   }
-
 
   override def accept2(log: NotebookOutput): Object = {
     log.h1("Data Staging")
@@ -185,8 +185,6 @@ abstract class TreeBuilder extends SerializableFunction[NotebookOutput, Object] 
       }
     })
   }
-
-  val selectionEntropyFactor = 1.0
 
   def split(treeNode: TreeNode, dataFrame: DataFrame, maxDepth: Int, statsS: List[String], entropyConfig: Map[String, Double])(implicit log: NotebookOutput, session: SparkSession): TreeNode = {
     val prevStorageLevel = dataFrame.storageLevel

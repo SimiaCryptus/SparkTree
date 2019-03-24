@@ -37,6 +37,132 @@ abstract class MultivariatePredictor extends SerializableFunction[NotebookOutput
 
   def sourceTableName: String
 
+  override def accept2(log: NotebookOutput): Object = {
+    log.h1("Data Staging")
+    log.p("""First, we will stage the initial data and manually perform a data staging query:""")
+    new SparkRepl() {
+
+      override val defaultCmd: String =
+        s"""%sql
+           | CREATE TEMPORARY VIEW $sourceTableName AS
+           | SELECT
+           |  T.*,
+           |  ${functions.map(t => t._2 + " AS " + t._1).mkString(", ")}
+           | FROM ${dataSources.values.head} AS T
+           |        """.stripMargin
+
+      override def shouldContinue(): Boolean = {
+        sourceDataFrame == null
+      }
+
+      override def init(): Unit = {
+        log.run(() => {
+          dataSources.foreach(t => {
+            val (k, v) = t
+            val frame = spark.sqlContext.read.parquet(k).persist(StorageLevel.DISK_ONLY)
+            frame.createOrReplaceTempView(v)
+            println(s"Loaded ${frame.count()} rows to ${v}")
+          })
+        })
+      }
+    }.apply(log)
+    log.p("""This sub-report can be used for concurrent adhoc data exploration:""")
+    log.subreport("explore", (sublog: NotebookOutput) => {
+      val thread = new Thread(() => {
+        new SparkRepl().apply(sublog)
+      }: Unit)
+      thread.setName("Data Exploration REPL")
+      thread.setDaemon(true)
+      thread.start()
+      null
+    })
+
+    val Array(trainingData, testingData) = sourceDataFrame.randomSplit(Array(0.9, 0.1))
+    trainingData.persist(StorageLevel.MEMORY_ONLY_SER)
+    log.h1("""Tree Parameters""")
+    log.p("""Now that we have loaded the schema, here are the parameters we will use for tree building:""")
+
+    for (sourceCol <- functions.keys) {
+      val predict_matrix = predictiveMatrix(sourceCol)
+      predict_matrix.createOrReplaceTempView(s"${sourceCol}_$targetCol")
+      SparkRepl.out(predict_matrix)(log)
+    }
+    val possibleClasses = sourceDataFrame.select(targetCol).rdd.map(_.getAs[Object](0).toString).distinct().collect()
+    spark.sqlContext.udf.register("max", (a: Double, b: Double) => if (null == a) b else if (null == b) a else Math.max(a, b))
+
+    new SparkRepl() {
+
+      val maxExpr = possibleClasses.map(category => {
+        s"IFNULL(T.${targetCol}_${category},0)"
+      }).reduce((a, b) => s"max($a,$b)")
+
+      val predictiveFn = "CASE " + possibleClasses.map(category => {
+        s"WHEN T.${targetCol}_${category} == T.max THEN '${category}'"
+      }).mkString("\n  ") + " END"
+
+      override val defaultCmd: String = {
+        val predictData = s"SELECT T.${targetCol}, " + possibleClasses.map(category => {
+          "(" + functions.keys.map(inputCol => {
+            s"T_$inputCol.${targetCol}_${category}"
+          }).mkString(" * ") + ")" + " AS " + s"${targetCol}_${category}"
+        }).mkString(",\n  ") + s"\nFROM ${sourceTableName} AS T \n" + functions.keys.map(inputCol => {
+          s"INNER JOIN ${inputCol}_$targetCol AS T_${inputCol} ON T_${inputCol}.${inputCol} = T.${inputCol}"
+        }).mkString("\n  ")
+        s"""%sql
+           |CREATE TEMPORARY VIEW predict AS
+           |${predictData};
+           |
+           |CREATE TEMPORARY VIEW predict_mag AS
+           |SELECT *, ${possibleClasses.map(category => s"IFNULL(${targetCol}_${category},0.0)").mkString(" + ")} AS magnitude
+           |FROM predict;
+           |
+           |CREATE TEMPORARY VIEW predict_normalized AS
+           |SELECT ${targetCol}, ${possibleClasses.map(category => s"${targetCol}_${category} / magnitude AS ${targetCol}_${category}").mkString(",\n")}
+           |FROM predict_mag;
+           |
+           |CREATE TEMPORARY VIEW predict_with_max AS
+           |SELECT *, $maxExpr AS max FROM predict_normalized AS T;
+           |
+           |CREATE TEMPORARY VIEW predict_with_label AS
+           |SELECT *, $predictiveFn AS predict FROM predict_with_max AS T;
+           |
+           |WITH A AS (
+           | SELECT COUNT(1) AS V
+           | FROM predict_with_label
+           | WHERE $targetCol == predict
+           |),
+           |B AS (
+           | SELECT COUNT(1) AS V
+           | FROM predict_with_label
+           | WHERE $targetCol != predict
+           |)
+           |SELECT A.V / (A.V + B.V) AS accuracy FROM A CROSS JOIN B
+           |;
+           |
+ |
+         """.stripMargin
+      }
+
+      override def shouldContinue(): Boolean = {
+        true
+      }
+
+      override def init(): Unit = {
+        log.run(() => {
+          dataSources.foreach(t => {
+            val (k, v) = t
+            val frame = spark.sqlContext.read.parquet(k).persist(StorageLevel.DISK_ONLY)
+            frame.createOrReplaceTempView(v)
+            println(s"Loaded ${frame.count()} rows to ${v}")
+          })
+        })
+      }
+    }.apply(log)
+
+
+    null
+  }
+
   final def sourceDataFrame: DataFrame = if (spark.sqlContext.tableNames().contains(sourceTableName)) spark.sqlContext.table(sourceTableName).cache() else null
 
   def functions = Map(
@@ -2339,132 +2465,6 @@ abstract class MultivariatePredictor extends SerializableFunction[NotebookOutput
         |    END
         |  END""".stripMargin
   ) - "label_c"
-
-  override def accept2(log: NotebookOutput): Object = {
-    log.h1("Data Staging")
-    log.p("""First, we will stage the initial data and manually perform a data staging query:""")
-    new SparkRepl() {
-
-      override val defaultCmd: String =
-        s"""%sql
-           | CREATE TEMPORARY VIEW $sourceTableName AS
-           | SELECT
-           |  T.*,
-           |  ${functions.map(t => t._2 + " AS " + t._1).mkString(", ")}
-           | FROM ${dataSources.values.head} AS T
-           |        """.stripMargin
-
-      override def shouldContinue(): Boolean = {
-        sourceDataFrame == null
-      }
-
-      override def init(): Unit = {
-        log.run(() => {
-          dataSources.foreach(t => {
-            val (k, v) = t
-            val frame = spark.sqlContext.read.parquet(k).persist(StorageLevel.DISK_ONLY)
-            frame.createOrReplaceTempView(v)
-            println(s"Loaded ${frame.count()} rows to ${v}")
-          })
-        })
-      }
-    }.apply(log)
-    log.p("""This sub-report can be used for concurrent adhoc data exploration:""")
-    log.subreport("explore", (sublog: NotebookOutput) => {
-      val thread = new Thread(() => {
-        new SparkRepl().apply(sublog)
-      }: Unit)
-      thread.setName("Data Exploration REPL")
-      thread.setDaemon(true)
-      thread.start()
-      null
-    })
-
-    val Array(trainingData, testingData) = sourceDataFrame.randomSplit(Array(0.9, 0.1))
-    trainingData.persist(StorageLevel.MEMORY_ONLY_SER)
-    log.h1("""Tree Parameters""")
-    log.p("""Now that we have loaded the schema, here are the parameters we will use for tree building:""")
-
-    for (sourceCol <- functions.keys) {
-      val predict_matrix = predictiveMatrix(sourceCol)
-      predict_matrix.createOrReplaceTempView(s"${sourceCol}_$targetCol")
-      SparkRepl.out(predict_matrix)(log)
-    }
-    val possibleClasses = sourceDataFrame.select(targetCol).rdd.map(_.getAs[Object](0).toString).distinct().collect()
-    spark.sqlContext.udf.register("max", (a: Double, b: Double) => if (null == a) b else if (null == b) a else Math.max(a, b))
-
-    new SparkRepl() {
-
-      val maxExpr = possibleClasses.map(category => {
-        s"IFNULL(T.${targetCol}_${category},0)"
-      }).reduce((a, b) => s"max($a,$b)")
-
-      val predictiveFn = "CASE " + possibleClasses.map(category => {
-        s"WHEN T.${targetCol}_${category} == T.max THEN '${category}'"
-      }).mkString("\n  ") + " END"
-
-      override val defaultCmd: String = {
-        val predictData = s"SELECT T.${targetCol}, " + possibleClasses.map(category => {
-          "(" + functions.keys.map(inputCol => {
-            s"T_$inputCol.${targetCol}_${category}"
-          }).mkString(" * ") + ")" + " AS " + s"${targetCol}_${category}"
-        }).mkString(",\n  ") + s"\nFROM ${sourceTableName} AS T \n" + functions.keys.map(inputCol => {
-          s"INNER JOIN ${inputCol}_$targetCol AS T_${inputCol} ON T_${inputCol}.${inputCol} = T.${inputCol}"
-        }).mkString("\n  ")
-        s"""%sql
-           |CREATE TEMPORARY VIEW predict AS
-           |${predictData};
-           |
-           |CREATE TEMPORARY VIEW predict_mag AS
-           |SELECT *, ${possibleClasses.map(category=>s"IFNULL(${targetCol}_${category},0.0)").mkString(" + ")} AS magnitude
-           |FROM predict;
-           |
-           |CREATE TEMPORARY VIEW predict_normalized AS
-           |SELECT ${targetCol}, ${possibleClasses.map(category=>s"${targetCol}_${category} / magnitude AS ${targetCol}_${category}").mkString(",\n")}
-           |FROM predict_mag;
-           |
-           |CREATE TEMPORARY VIEW predict_with_max AS
-           |SELECT *, $maxExpr AS max FROM predict_normalized AS T;
-           |
-           |CREATE TEMPORARY VIEW predict_with_label AS
-           |SELECT *, $predictiveFn AS predict FROM predict_with_max AS T;
-           |
-           |WITH A AS (
-           | SELECT COUNT(1) AS V
-           | FROM predict_with_label
-           | WHERE $targetCol == predict
-           |),
-           |B AS (
-           | SELECT COUNT(1) AS V
-           | FROM predict_with_label
-           | WHERE $targetCol != predict
-           |)
-           |SELECT A.V / (A.V + B.V) AS accuracy FROM A CROSS JOIN B
-           |;
-           |
- |
-         """.stripMargin
-      }
-
-      override def shouldContinue(): Boolean = {
-        true
-      }
-
-      override def init(): Unit = {
-        log.run(() => {
-          dataSources.foreach(t => {
-            val (k, v) = t
-            val frame = spark.sqlContext.read.parquet(k).persist(StorageLevel.DISK_ONLY)
-            frame.createOrReplaceTempView(v)
-            println(s"Loaded ${frame.count()} rows to ${v}")
-          })
-        })
-      }
-    }.apply(log)
-
-
-    null
-  }
 
   def predictiveMatrix(sourceCol: String, sourceData: DataFrame = sourceDataFrame, targetCol: String = targetCol) = {
     val totals = sourceData.select(sourceCol).groupBy(sourceCol).agg(count(lit(1)).as("count")).cache()
