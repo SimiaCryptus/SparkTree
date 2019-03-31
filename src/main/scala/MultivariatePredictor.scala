@@ -37,7 +37,7 @@ abstract class MultivariatePredictor extends SerializableFunction[NotebookOutput
 
   def sourceTableName: String
 
-  override def accept2(log: NotebookOutput): Object = {
+  override def postConfigure(log: NotebookOutput): Object = {
     log.h1("Data Staging")
     log.p("""First, we will stage the initial data and manually perform a data staging query:""")
     new SparkRepl() {
