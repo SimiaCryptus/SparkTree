@@ -123,12 +123,12 @@ abstract class TreeBuilder extends SerializableFunction[NotebookOutput, Object] 
       .registerModule(DefaultScalaModule)
       .enableDefaultTyping()
     val statsS = new JsonQuery[List[String]](log.asInstanceOf[MarkdownNotebookOutput]).setMapper({
-      objectMapper
-    }).print(statsSpec(sourceDataFrame.schema)).get()
+          objectMapper
+        }).setValue(statsSpec(sourceDataFrame.schema)).print().get()
     log.p("Entropy Spec:")
     val entropyConfig = new JsonQuery[Map[String, Double]](log.asInstanceOf[MarkdownNotebookOutput]).setMapper({
-      objectMapper
-    }).print(entropySpec(sourceDataFrame.schema)).get()
+          objectMapper
+        }).setValue(entropySpec(sourceDataFrame.schema)).print().get()
 
     log.h1("Construction")
     val root = split(TreeNode(
