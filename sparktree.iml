@@ -39,7 +39,6 @@
     <orderEntry type="library" name="Maven: com.amazonaws:aws-java-sdk-iam:1.11.495" level="project" />
     <orderEntry type="library" name="Maven: com.amazonaws:aws-java-sdk-ses:1.11.495" level="project" />
     <orderEntry type="library" name="Maven: org.apache.hadoop:hadoop-aws:2.9.0" level="project" />
-    <orderEntry type="library" name="Maven: com.amazonaws:aws-java-sdk-bundle:1.11.199" level="project" />
     <orderEntry type="library" name="Maven: org.apache.commons:commons-lang3:3.8.1" level="project" />
     <orderEntry type="module" module-name="sparkbook" />
     <orderEntry type="library" name="Maven: com.twitter:chill_2.11:0.9.3" level="project" />
