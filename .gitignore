@@ -3,6 +3,7 @@
 buildNumber.properties
 dependency-reduced-pom.xml
 ../.gitignore
+.idea/
 *.iml
 .mvn/timing.properties
 !/.mvn/wrapper/maven-wrapper.jar
