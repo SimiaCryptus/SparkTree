@@ -12,5 +12,6 @@ pom.xml.releaseBackup
 pom.xml.tag
 pom.xml.versionsBackup
 release.properties
+sparktree.iml
 target/
 target/
