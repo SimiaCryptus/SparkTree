@@ -139,7 +139,7 @@ abstract class MultivariatePredictor extends SerializableFunction[NotebookOutput
            |SELECT A.V / (A.V + B.V) AS accuracy FROM A CROSS JOIN B
            |;
            |
- |
+           |
          """.stripMargin
       }
 

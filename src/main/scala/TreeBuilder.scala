@@ -17,13 +17,13 @@
  * under the License.
  */
 
-import java.util
 import java.util.regex.Pattern
 
 import com.fasterxml.jackson.databind.{MapperFeature, ObjectMapper, SerializationFeature}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.simiacryptus.lang.SerializableFunction
 import com.simiacryptus.notebook.{JsonQuery, MarkdownNotebookOutput, NotebookOutput, TableOutput}
+import com.simiacryptus.ref.wrappers.RefHashMap
 import com.simiacryptus.sparkbook._
 import com.simiacryptus.sparkbook.repl.{SparkRepl, SparkSessionProvider}
 import com.simiacryptus.sparkbook.util.Java8Util._
@@ -248,7 +248,7 @@ abstract class TreeBuilder extends SerializableFunction[NotebookOutput, Object] 
         entropyTable.schema.put("rows", classOf[java.lang.String])
         entropyDetails.flatMap(_.keys).distinct.sorted.filterNot(entropyTable.schema.containsKey(_)).foreach(s => entropyTable.schema.put(s, classOf[java.lang.String]))
         import scala.collection.JavaConverters._
-        entropyDetails.foreach(row => entropyTable.putRow(new util.HashMap[CharSequence, Object](row.map(e => e._1 -> e._2.toString).asJava)))
+        entropyDetails.foreach(row => entropyTable.putRow(new RefHashMap[CharSequence, Object](row.map(e => e._1 -> e._2.toString).asJava)))
         log.p(entropyTable.toMarkdownTable)
 
         log.h2("Children")
