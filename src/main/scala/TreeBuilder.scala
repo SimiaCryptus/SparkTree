@@ -398,7 +398,6 @@ abstract class TreeBuilder extends SerializableFunction[NotebookOutput, Object] 
           "common_values" -> dataFrame.rdd.map(_.getAs[String](field.name)).countByValue().toList.sortBy(_._2).takeRight(topN).toMap
         )
     }
-
   }
 
   def index(strings: Seq[String]) = {
@@ -503,6 +502,5 @@ abstract class TreeBuilder extends SerializableFunction[NotebookOutput, Object] 
         })
       case _ => Seq.empty
     }
-
   }
 }
