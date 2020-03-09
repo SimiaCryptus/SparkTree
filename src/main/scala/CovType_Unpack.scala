@@ -46,6 +46,7 @@ object CovType_Unpack_Local extends CovType_Unpack with LocalRunner[Object] with
 
 object CovType_Unpack_EC2 extends CovType_Unpack with EC2Runner[Object] with AWSNotebookRunner[Object] {
   override val s3bucket: String = envTuple._2
+  override val className = "CovType"
 
   override def nodeSettings: EC2NodeSettings = EC2NodeSettings.T2_L
 }
