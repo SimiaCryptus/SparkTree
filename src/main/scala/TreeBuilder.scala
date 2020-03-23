@@ -19,6 +19,7 @@
 
 import java.util.regex.Pattern
 
+import CovType_Forest_Embedded.envTuple
 import com.fasterxml.jackson.databind.{MapperFeature, ObjectMapper, SerializationFeature}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.simiacryptus.lang.SerializableFunction
@@ -37,7 +38,7 @@ import org.apache.spark.storage.StorageLevel
 import scala.collection.immutable
 import scala.util.Random
 
-abstract class TreeBuilder extends SerializableFunction[NotebookOutput, Object] with Logging with SparkSessionProvider with InteractiveSetup[Object] {
+abstract class TreeBuilder extends InteractiveSetup[Object] with Logging with SparkSessionProvider {
 
   private lazy val tokenizer = Option(tokenizerRegex).map(Pattern.compile(_))
   val ruleSamples = 5
@@ -503,4 +504,7 @@ abstract class TreeBuilder extends SerializableFunction[NotebookOutput, Object] 
       case _ => Seq.empty
     }
   }
+
+  override def s3bucket: String = "simiacryptus"
+
 }

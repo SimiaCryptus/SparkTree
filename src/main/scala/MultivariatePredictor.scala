@@ -17,6 +17,7 @@
  * under the License.
  */
 
+import CovType_Forest_Embedded.envTuple
 import com.simiacryptus.lang.SerializableFunction
 import com.simiacryptus.notebook.NotebookOutput
 import com.simiacryptus.sparkbook._
@@ -27,7 +28,7 @@ import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions._
 import org.apache.spark.storage.StorageLevel
 
-abstract class MultivariatePredictor extends SerializableFunction[NotebookOutput, Object] with Logging with SparkSessionProvider with InteractiveSetup[Object] {
+abstract class MultivariatePredictor extends InteractiveSetup[Object] with Logging with SparkSessionProvider {
 
   val targetCol = "Cover_Type"
 
@@ -2482,4 +2483,6 @@ abstract class MultivariatePredictor extends SerializableFunction[NotebookOutput
       .sort(relabeledOut(sourceCol))
       .cache()
   }
+
+  override def s3bucket: String = "simiacryptus"
 }
