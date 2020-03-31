@@ -17,14 +17,12 @@
  * under the License.
  */
 
-import CovType_Forest_Embedded.envTuple
-import com.simiacryptus.lang.SerializableFunction
 import com.simiacryptus.notebook.NotebookOutput
 import com.simiacryptus.sparkbook._
 import com.simiacryptus.sparkbook.repl.{SparkRepl, SparkSessionProvider}
 import com.simiacryptus.sparkbook.util.Java8Util._
 import com.simiacryptus.sparkbook.util.Logging
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.storage.StorageLevel
 
