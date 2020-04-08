@@ -19,10 +19,8 @@
 
 import java.util.regex.Pattern
 
-import CovType_Forest_Embedded.envTuple
 import com.fasterxml.jackson.databind.{MapperFeature, ObjectMapper, SerializationFeature}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import com.simiacryptus.lang.SerializableFunction
 import com.simiacryptus.notebook.{JsonQuery, MarkdownNotebookOutput, NotebookOutput, TableOutput}
 import com.simiacryptus.ref.wrappers.RefHashMap
 import com.simiacryptus.sparkbook._
