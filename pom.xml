@@ -161,6 +161,7 @@
     <url>http://code.simiacrypt.us/release/${project.version}/sparktree</url>
     <distributionManagement>
         <site>
+            <id>simiacryptus</id>
             <url>s3://code.simiacrypt.us/release/${project.version}/sparktree</url>
         </site>
     </distributionManagement>
