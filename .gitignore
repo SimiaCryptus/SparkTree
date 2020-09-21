@@ -1,18 +1,18 @@
 
+!/.mvn/wrapper/maven-wrapper.jar
 # Avoid ignoring Maven wrapper jar file (.jar files are usually ignored)
-buildNumber.properties
-dependency-reduced-pom.xml
+*.hprof
+*.iml
 ../.gitignore
 .idea/
-*.iml
 .mvn/timing.properties
-!/.mvn/wrapper/maven-wrapper.jar
+buildNumber.properties
+dependency-reduced-pom.xml
 pom.xml.next
 pom.xml.releaseBackup
 pom.xml.tag
 pom.xml.versionsBackup
 release.properties
 sparktree.iml
+sparktree.iml
 target/
-*.hprof
-
