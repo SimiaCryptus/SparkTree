@@ -170,7 +170,7 @@ abstract class TreeBuilder extends InteractiveSetup[Object] with Logging with Sp
           def predict(partition: Iterable[Row]): Map[Integer, Double] = {
             val classes = partition.groupBy((row: Row) => getCategory(row, columnName)).mapValues(_.size)
             val total = classes.values.sum
-            classes.map(e => e._1 -> e._2 / total.doubleValue())
+            classes.map(e => e._1 -> e._2 / total.doubleValue()).toMap
           }
 
           val predictionIndex = testingData.rdd.groupBy(row => treeRoot.route(row).id).mapValues(predict(_)).collect().toMap
