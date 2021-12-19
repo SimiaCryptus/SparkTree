@@ -26,7 +26,7 @@ import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions._
 import org.apache.spark.storage.StorageLevel
 
-abstract class MultivariatePredictor extends InteractiveSetup[Object] with Logging with SparkSessionProvider {
+abstract class MultivariatePredictor extends InteractiveSetup[Object, MultivariatePredictor] with Logging with SparkSessionProvider {
 
   val targetCol = "Cover_Type"
 

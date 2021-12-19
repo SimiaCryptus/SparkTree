@@ -36,7 +36,7 @@ import org.apache.spark.storage.StorageLevel
 import scala.collection.immutable
 import scala.util.Random
 
-abstract class TreeBuilder extends InteractiveSetup[Object] with Logging with SparkSessionProvider {
+abstract class TreeBuilder extends InteractiveSetup[Object, TreeBuilder] with Logging with SparkSessionProvider {
 
   private lazy val tokenizer = Option(tokenizerRegex).map(Pattern.compile(_))
   val ruleSamples = 5
