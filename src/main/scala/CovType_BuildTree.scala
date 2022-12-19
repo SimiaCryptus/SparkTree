@@ -22,6 +22,9 @@ import com.simiacryptus.sparkbook._
 import com.simiacryptus.sparkbook.util.LocalRunner
 import org.apache.spark.sql.types._
 
+import java.net.URI
+import java.util.UUID
+
 abstract class CovType_BuildTree extends TreeBuilder {
 
   override val dataSources = Map(
@@ -72,6 +75,8 @@ object CovType_BuildTree_Embedded extends CovType_BuildTree with EmbeddedSparkRu
 }
 
 object CovType_BuildTree_EC2 extends CovType_BuildTree with EC2SparkRunner[Object] with AWSNotebookRunner[Object] {
+
+  def s3home: URI = URI.create(s"s3://${s3bucket}/reports/" + UUID.randomUUID().toString + "/")
 
   override val s3bucket: String = envTuple._2
   override val numberOfWorkerNodes: Int = 1

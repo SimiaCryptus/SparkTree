@@ -21,6 +21,9 @@ import com.simiacryptus.aws.exe.EC2NodeSettings
 import com.simiacryptus.sparkbook._
 import com.simiacryptus.sparkbook.util.LocalRunner
 
+import java.net.URI
+import java.util.UUID
+
 abstract class CovType_Forest extends MultivariatePredictor {
 
   override val dataSources = Map(
@@ -44,6 +47,8 @@ object CovType_Forest_Embedded extends CovType_Forest with EmbeddedSparkRunner[O
 }
 
 object CovType_Forest_EC2 extends CovType_Forest with EC2SparkRunner[Object] with AWSNotebookRunner[Object] {
+
+  def s3home: URI = URI.create(s"s3://${s3bucket}/reports/" + UUID.randomUUID().toString + "/")
 
   override val s3bucket: String = envTuple._2
   override val numberOfWorkerNodes: Int = 2

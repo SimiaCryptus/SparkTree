@@ -87,7 +87,7 @@ abstract class MultivariatePredictor extends InteractiveSetup[Object, Multivaria
       SparkRepl.out(predict_matrix)(log)
     }
     val possibleClasses = sourceDataFrame.select(targetCol).rdd.map(_.getAs[Object](0).toString).distinct().collect()
-    spark.sqlContext.udf.register("max", (a: Double, b: Double) => if (null == a) b else if (null == b) a else Math.max(a, b))
+    spark.sqlContext.udf.register("max", (a: Double, b: Double) => Math.max(a, b))
 
     new SparkRepl() {
 

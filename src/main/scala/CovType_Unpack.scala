@@ -23,6 +23,9 @@ import com.simiacryptus.sparkbook.repl.{SparkRepl, SparkSessionProvider}
 import com.simiacryptus.sparkbook.util.{LocalRunner, Logging}
 import org.apache.spark.sql.SaveMode
 
+import java.net.URI
+import java.util.UUID
+
 abstract class CovType_Unpack extends SparkRepl with Logging with SparkSessionProvider {
 
   override val defaultCmd: String =
@@ -45,6 +48,8 @@ object CovType_Unpack_Local extends CovType_Unpack with LocalRunner[Object] with
 }
 
 object CovType_Unpack_EC2 extends CovType_Unpack with EC2Runner[Object] with AWSNotebookRunner[Object] {
+  def s3home: URI = URI.create(s"s3://${s3bucket}/reports/" + UUID.randomUUID().toString + "/")
+
   override val s3bucket: String = envTuple._2
   override val className = "CovType"
 
